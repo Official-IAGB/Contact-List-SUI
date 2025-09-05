@@ -1,0 +1,87 @@
+// =================================================================================================
+// | Module: task_manager
+// | Description: Un módulo simple para crear, gestionar y eliminar tareas como objetos Sui.
+// | Author: Gemini AI
+// | Version: 1.0.0
+// =================================================================================================
+
+module my_addr::task_manager {
+
+    // === Imports ===
+    use sui::object::{Self, UID};
+    use sui::transfer;
+    use sui::tx_context::{Self, TxContext};
+    use std::string::{Self, String};
+
+    // === Constantes de Error ===
+    /// Se produce cuando una descripción está vacía.
+    const E_EMPTY_DESCRIPTION: u64 = 1;
+
+    // === Estructuras de Objetos ===
+
+    /// Representa una tarea individual en el sistema.
+    /// Es un objeto Sui propiedad de una dirección.
+    /// `key` permite que el objeto sea almacenado globalmente.
+    /// `store` permite que el objeto sea pasado como argumento o anidado en otras estructuras.
+    struct Task has key, store {
+        id: UID,
+        description: String,
+        completed: bool,
+        owner: address,
+    }
+
+    // === Funciones Públicas de Entrada (Entry Functions) ===
+
+    /// Crea un nuevo objeto `Task` y lo transfiere al remitente de la transacción.
+    /// La descripción de la tarea no puede estar vacía.
+    public entry fun create_task(description: vector<u8>, ctx: &mut TxContext) {
+        assert!(vector::length(&description) > 0, E_EMPTY_DESCRIPTION);
+
+        let sender = tx_context::sender(ctx);
+        let task = Task {
+            id: object::new(ctx),
+            description: string::utf8(description),
+            completed: false, // Todas las tareas nuevas inician como no completadas.
+            owner: sender,
+        };
+        transfer::public_transfer(task, sender);
+    }
+
+    /// Actualiza la descripción de un objeto `Task` existente.
+    /// Solo el propietario de la tarea puede llamar a esta función.
+    public entry fun update_description(task: &mut Task, new_description: vector<u8>, _ctx: &mut TxContext) {
+        assert!(vector::length(&new_description) > 0, E_EMPTY_DESCRIPTION);
+        task.description = string::utf8(new_description);
+    }
+
+    /// Marca un objeto `Task` como completado.
+    /// Esta acción es irreversible.
+    public entry fun complete_task(task: &mut Task, _ctx: &mut TxContext) {
+        task.completed = true;
+    }
+
+    /// Transfiere un objeto `Task` a un nuevo propietario.
+    /// Solo el propietario actual puede iniciar la transferencia.
+    public entry fun transfer_task(task: Task, new_owner: address, _ctx: &mut TxContext) {
+        transfer::public_transfer(task, new_owner);
+    }
+
+    /// Elimina permanentemente un objeto `Task`.
+    /// Esta acción es irreversible y elimina el objeto de la blockchain.
+    public entry fun delete_task(task: Task, _ctx: &mut TxContext) {
+        let Task { id, description: _, completed: _, owner: _ } = task;
+        object::delete(id);
+    }
+
+    // === Funciones de Solo Lectura (View Functions) ===
+
+    /// Obtiene los detalles de un objeto `Task`.
+    /// Devuelve la descripción, el estado de completado y el propietario.
+    public fun get_task_details(task: &Task): (String, bool, address) {
+        (
+            task.description,
+            task.completed,
+            task.owner
+        )
+    }
+}
